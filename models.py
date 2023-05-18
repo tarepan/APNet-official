@@ -1,39 +1,40 @@
 import torch
+from torch import Tensor
 import torch.nn.functional as F
 import torch.nn as nn
-from torch.nn import Conv1d, ConvTranspose1d, AvgPool1d, Conv2d
+from torch.nn import Conv1d, AvgPool1d, Conv2d
 from torch.nn.utils import weight_norm, spectral_norm
 from utils import init_weights, get_padding
 
 LRELU_SLOPE = 0.1
 
 
-class ASPResBlock(torch.nn.Module):
-    def __init__(self, h, channels, kernel_size=3, dilation=(1, 3, 5)):
-        super(ASPResBlock, self).__init__()
-        self.h = h
+class ResBlock(torch.nn.Module):
+    """ResBlock Q=3, Res[LReLU-DConv-LReLU-Conv]x3."""
+    def __init__(self, channels: int, kernel_size: int, dilation: tuple[int, int, int]):
+        super().__init__()
+
+        # Validation
+        assert kernel_size % 2 == 0, f"Support only odd-number kernel, but set to {kernel_size}."
+
+        # DilatedConv
         self.convs1 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[0],
-                               padding=get_padding(kernel_size, dilation[0]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[1],
-                               padding=get_padding(kernel_size, dilation[1]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[2],
-                               padding=get_padding(kernel_size, dilation[2])))
+            weight_norm(Conv1d(channels, channels, kernel_size, dilation=dilation[0], padding=get_padding(kernel_size, dilation[0]))),
+            weight_norm(Conv1d(channels, channels, kernel_size, dilation=dilation[1], padding=get_padding(kernel_size, dilation[1]))),
+            weight_norm(Conv1d(channels, channels, kernel_size, dilation=dilation[2], padding=get_padding(kernel_size, dilation[2]))),
         ])
         self.convs1.apply(init_weights)
-
+        # Conv
         self.convs2 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1)))
+            weight_norm(Conv1d(channels, channels, kernel_size,                       padding="same")),
+            weight_norm(Conv1d(channels, channels, kernel_size,                       padding="same")),
+            weight_norm(Conv1d(channels, channels, kernel_size,                       padding="same")),
         ])
         self.convs2.apply(init_weights)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         for c1, c2 in zip(self.convs1, self.convs2):
+            # Res[LReLU-DConv-LReLU-Conv]
             xt = F.leaky_relu(x, LRELU_SLOPE)
             xt = c1(xt)
             xt = F.leaky_relu(xt, LRELU_SLOPE)
@@ -41,105 +42,91 @@ class ASPResBlock(torch.nn.Module):
             x = xt + x
         return x
 
-class PSPResBlock(torch.nn.Module):
-    def __init__(self, h, channels, kernel_size=3, dilation=(1, 3, 5)):
-        super(PSPResBlock, self).__init__()
-        self.h = h
-        self.convs1 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[0],
-                               padding=get_padding(kernel_size, dilation[0]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[1],
-                               padding=get_padding(kernel_size, dilation[1]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[2],
-                               padding=get_padding(kernel_size, dilation[2])))
-        ])
-        self.convs1.apply(init_weights)
-
-        self.convs2 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1)))
-        ])
-        self.convs2.apply(init_weights)
-
-    def forward(self, x):
-        for c1, c2 in zip(self.convs1, self.convs2):
-            xt = F.leaky_relu(x, LRELU_SLOPE)
-            xt = c1(xt)
-            xt = F.leaky_relu(xt, LRELU_SLOPE)
-            xt = c2(xt)
-            x = xt + x
-        return x
 
 class Generator(torch.nn.Module):
     def __init__(self, h):
-        super(Generator, self).__init__()
+        super().__init__()
+
+        # Validation
+        assert h.PSP_input_conv_kernel_size    % 2 == 0, f"Support only odd-number kernel, but set to {h.PSP_input_conv_kernel_size}."
+        assert h.ASP_input_conv_kernel_size    % 2 == 0, f"Support only odd-number kernel, but set to {h.ASP_input_conv_kernel_size}."
+        assert h.ASP_output_conv_kernel_size   % 2 == 0, f"Support only odd-number kernel, but set to {h.ASP_output_conv_kernel_size}."
+        assert h.PSP_output_R_conv_kernel_size % 2 == 0, f"Support only odd-number kernel, but set to {h.PSP_output_R_conv_kernel_size}."
+        assert h.PSP_output_I_conv_kernel_size % 2 == 0, f"Support only odd-number kernel, but set to {h.PSP_output_I_conv_kernel_size}."
+
         self.h = h
-        self.ASP_num_kernels = len(h.ASP_resblock_kernel_sizes)
-        self.PSP_num_kernels = len(h.PSP_resblock_kernel_sizes)
+        self.asp_num_kernels = len(h.ASP_resblock_kernel_sizes) # `P` of ASP
+        self.psp_num_kernels = len(h.PSP_resblock_kernel_sizes) # `P` of PSP
+        freq = h.n_fft // 2 + 1
 
-        self.ASP_input_conv = weight_norm(Conv1d(h.num_mels, h.ASP_channel, h.ASP_input_conv_kernel_size, 1, 
-                                                 padding=get_padding(h.ASP_input_conv_kernel_size, 1)))
-        self.PSP_input_conv = weight_norm(Conv1d(h.num_mels, h.PSP_channel, h.PSP_input_conv_kernel_size, 1, 
-                                                 padding=get_padding(h.PSP_input_conv_kernel_size, 1)))
+        # PreNets
+        self.ASP_input_conv = weight_norm(Conv1d(h.num_mels, h.ASP_channel, h.ASP_input_conv_kernel_size, padding="same"))
+        self.PSP_input_conv = weight_norm(Conv1d(h.num_mels, h.PSP_channel, h.PSP_input_conv_kernel_size, padding="same"))
 
+        # MainNets - `P`-kernel multi receptive field network for ASP and PSP
         self.ASP_ResNet = nn.ModuleList()
-        for j, (k, d) in enumerate(zip(h.ASP_resblock_kernel_sizes, h.ASP_resblock_dilation_sizes)):
-            self.ASP_ResNet.append(ASPResBlock(h, h.ASP_channel, k, d))
-
+        for k, d in zip(h.ASP_resblock_kernel_sizes, h.ASP_resblock_dilation_sizes):
+            self.ASP_ResNet.append(ResBlock(h.ASP_channel, k, d))
         self.PSP_ResNet = nn.ModuleList()
-        for j, (k, d) in enumerate(zip(h.PSP_resblock_kernel_sizes, h.PSP_resblock_dilation_sizes)):
-            self.PSP_ResNet.append(PSPResBlock(h, h.PSP_channel, k, d))
+        for k, d in zip(h.PSP_resblock_kernel_sizes, h.PSP_resblock_dilation_sizes):
+            self.PSP_ResNet.append(ResBlock(h.PSP_channel, k, d))
 
-        self.ASP_output_conv = weight_norm(Conv1d(h.ASP_channel, h.n_fft//2+1, h.ASP_output_conv_kernel_size, 1, 
-                                                  padding=get_padding(h.ASP_output_conv_kernel_size, 1)))
-        self.PSP_output_R_conv = weight_norm(Conv1d(h.PSP_channel, h.n_fft//2+1, h.PSP_output_R_conv_kernel_size, 1, 
-                                                    padding=get_padding(h.PSP_output_R_conv_kernel_size, 1)))
-        self.PSP_output_I_conv = weight_norm(Conv1d(h.PSP_channel, h.n_fft//2+1, h.PSP_output_I_conv_kernel_size, 1, 
-                                                    padding=get_padding(h.PSP_output_I_conv_kernel_size, 1)))
-
+        # PostNet
+        self.ASP_output_conv   = weight_norm(Conv1d(h.ASP_channel, freq, h.ASP_output_conv_kernel_size,   padding="same"))
+        self.PSP_output_R_conv = weight_norm(Conv1d(h.PSP_channel, freq, h.PSP_output_R_conv_kernel_size, padding="same"))
+        self.PSP_output_I_conv = weight_norm(Conv1d(h.PSP_channel, freq, h.PSP_output_I_conv_kernel_size, padding="same"))
         self.ASP_output_conv.apply(init_weights)
         self.PSP_output_R_conv.apply(init_weights)
         self.PSP_output_I_conv.apply(init_weights)
 
     def forward(self, mel):
-
+        """
+        Args:
+            mel - Mel-Frequency 
+        Returns:
+            logamp - Linear-Frequency Log-Amplitude spectrogram
+            pha
+            rea
+            imag
+            audio
+        """
+        # ASP
+        ## PreNet
         logamp = self.ASP_input_conv(mel)
-        logamps = None
-        for j in range(self.ASP_num_kernels):
-            if logamps is None:
-                logamps = self.ASP_ResNet[j](logamp)
-            else:
-                logamps += self.ASP_ResNet[j](logamp)
-        logamp = logamps / self.ASP_num_kernels
+        ## MainNet - MRF
+        logamps = self.ASP_ResNet[0](logamp)
+        for j in range(1, self.asp_num_kernels):
+            logamps += self.ASP_ResNet[j](logamp)
+        logamp = logamps / self.asp_num_kernels
         logamp = F.leaky_relu(logamp)
+        ## PostNet
         logamp = self.ASP_output_conv(logamp)
 
+        # PSP
+        ## PreNet
         pha = self.PSP_input_conv(mel)
-        phas = None
-        for j in range(self.PSP_num_kernels):
-            if phas is None:
-                phas = self.PSP_ResNet[j](pha)
-            else:
-                phas += self.PSP_ResNet[j](pha)
-        pha = phas / self.PSP_num_kernels
+        ## MainNet - MRF
+        phas = self.PSP_ResNet[0](pha)
+        for j in range(1, self.psp_num_kernels):
+            phas += self.PSP_ResNet[j](pha)
+        pha = phas / self.psp_num_kernels
         pha = F.leaky_relu(pha)   
+        ## PostNet
         R = self.PSP_output_R_conv(pha)
         I = self.PSP_output_I_conv(pha)
 
         pha = torch.atan2(I,R)
 
-        rea = torch.exp(logamp)*torch.cos(pha)
-        imag = torch.exp(logamp)*torch.sin(pha)
+        # Complex spectrogram
+        rea  = torch.exp(logamp) * torch.cos(pha)
+        imag = torch.exp(logamp) * torch.sin(pha)
+        spec = torch.cat((rea.unsqueeze(-1), imag.unsqueeze(-1)), -1)
 
-        spec = torch.cat((rea.unsqueeze(-1),imag.unsqueeze(-1)),-1)
-
+        # iSTFT
         audio = torch.istft(spec, self.h.n_fft, hop_length=self.h.hop_size, win_length=self.h.win_size, window=torch.hann_window(self.h.win_size).to(mel.device), center=True)
 
         return logamp, pha, rea, imag, audio.unsqueeze(1)
+
 
 class DiscriminatorP(torch.nn.Module):
     def __init__(self, period, kernel_size=5, stride=3, use_spectral_norm=False):
