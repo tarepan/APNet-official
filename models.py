@@ -111,11 +111,10 @@ class Generator(torch.nn.Module):
             phas += self.PSP_ResNet[j](pha)
         pha = phas / self.psp_num_kernels
         pha = F.leaky_relu(pha)   
-        ## PostNet
+        ## PostNet - parallel phase estimation
         R = self.PSP_output_R_conv(pha)
         I = self.PSP_output_I_conv(pha)
-
-        pha = torch.atan2(I,R)
+        pha = torch.atan2(I, R)
 
         # Complex spectrogram
         rea  = torch.exp(logamp) * torch.cos(pha)

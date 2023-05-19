@@ -12,6 +12,54 @@ import matplotlib.pylab as plt
 matplotlib.use("Agg")
 
 
+@dataclass
+class GlobalConf:
+    input_training_wav_list:   str
+    input_validation_wav_list: str
+    test_input_wavs_dir:       str
+    test_input_mels_dir:       str
+    test_mel_load:             int
+    test_output_dir:           str
+
+    batch_size:                int
+    learning_rate:             float
+    adam_b1:                   float
+    adam_b2:                   float
+    lr_decay:                  float
+    seed:                      int
+    training_epochs:           int
+
+    stdout_interval:           int
+    checkpoint_interval:       int
+    summary_interval:          int
+    validation_interval:       int
+
+    checkpoint_path:           str
+    checkpoint_file_load:      str
+
+    ASP_channel:                   int
+    ASP_resblock_kernel_sizes:     tuple[int, int, int]
+    ASP_resblock_dilation_sizes:   tuple[tuple[int, int, int], tuple[int, int, int], tuple[int, int, int]]
+    ASP_input_conv_kernel_size:    int
+    ASP_output_conv_kernel_size:   int
+    PSP_channel:                   int
+    PSP_resblock_kernel_sizes:     tuple[int, int, int]
+    PSP_resblock_dilation_sizes:   tuple[tuple[int, int, int], tuple[int, int, int], tuple[int, int, int]]
+    PSP_input_conv_kernel_size:    int
+    PSP_output_R_conv_kernel_size: int
+    PSP_output_I_conv_kernel_size: int
+
+    segment_size:  int
+    n_fft:         int
+    hop_size:      int
+    win_size:      int
+    sampling_rate: int
+    num_mels:      int
+    fmin:          int
+    fmax:          int
+    num_workers:   int
+
+
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
         super(AttrDict, self).__init__(*args, **kwargs)

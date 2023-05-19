@@ -11,13 +11,13 @@ from torch.utils.data import DataLoader
 from dataset import Dataset, mel_spectrogram, amp_pha_specturm, get_dataset_filelist
 from models import Generator, MultiPeriodDiscriminator, MultiScaleDiscriminator, feature_loss, generator_loss,\
     discriminator_loss, amplitude_loss, phase_loss, STFT_consistency_loss
-from utils import AttrDict, build_env, plot_spectrogram, scan_checkpoint, load_checkpoint, save_checkpoint
+from utils import AttrDict, GlobalConf, build_env, plot_spectrogram, scan_checkpoint, load_checkpoint, save_checkpoint
 
 
 torch.backends.cudnn.benchmark = True
 
 
-def train(h):
+def train(h: GlobalConf):
 
     torch.cuda.manual_seed(h.seed)
     device = torch.device('cuda:0')
@@ -59,9 +59,9 @@ def train(h):
     # Data
     training_filelist, validation_filelist = get_dataset_filelist(h.input_training_wav_list, h.input_validation_wav_list)
     trainset = Dataset(training_filelist,
-        h.segment_size, h.n_fft, h.num_mels, h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax,               n_cache_reuse=0, shuffle=True)
+        h.segment_size, h.n_fft, h.num_mels, h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax, split=True,  shuffle=True,  n_cache_reuse=0)
     validset = Dataset(validation_filelist,
-        h.segment_size, h.n_fft, h.num_mels, h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax, False, False, n_cache_reuse=0)
+        h.segment_size, h.n_fft, h.num_mels, h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax, split=False, shuffle=False, n_cache_reuse=0)
     train_loader      = DataLoader(trainset, num_workers=h.num_workers, shuffle=False, batch_size=h.batch_size, pin_memory=True, drop_last=True)
     validation_loader = DataLoader(validset, num_workers=1,             shuffle=False, batch_size=1,            pin_memory=True, drop_last=True)
 
@@ -84,15 +84,15 @@ def train(h):
 
             # Data
             x, logamp, pha, rea, imag, y = batch
-            x      = x.to(     device, non_blocking=True) # (maybe) Melspec
-            y      = y.to(     device, non_blocking=True) # (maybe) Gound-truth Waveform
-            logamp = logamp.to(device, non_blocking=True)
-            pha    = pha.to(   device, non_blocking=True)
-            rea    = rea.to(   device, non_blocking=True)
-            imag   = imag.to(  device, non_blocking=True)
+            x      = x.to(     device, non_blocking=True) # :: (B, Freq, Frame) - Mel-frequency Log-Amplitude spectrogram
+            y      = y.to(     device, non_blocking=True) # :: (B, T)           - Gound-truth waveform, in range [-1, 1]
+            logamp = logamp.to(device, non_blocking=True) # :: (B, Freq, Frame)
+            pha    = pha.to(   device, non_blocking=True) # :: (B, Freq, Frame)
+            rea    = rea.to(   device, non_blocking=True) # :: (B, Freq, Frame)
+            imag   = imag.to(  device, non_blocking=True) # :: (B, Freq, Frame)
 
             # Reshape
-            y = y.unsqueeze(1)
+            y = y.unsqueeze(1) # :: (B, 1, T)
 
             # Common_Forward
             logamp_g, pha_g, rea_g, imag_g, y_g = generator(x)
@@ -258,19 +258,22 @@ def train(h):
 def main():
     print('Initializing Training Process..')
 
+    # Load config
     config_file = 'config.json'
-
     with open(config_file) as f:
         data = f.read()
-
     json_config = json.loads(data)
-    h = AttrDict(json_config)
+    h: GlobalConf = AttrDict(json_config)
+
+    # Save config
     build_env(config_file, 'config.json', h.checkpoint_path)
 
+    # Seeds
     torch.manual_seed(h.seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed(h.seed)
 
+    # Run
     train(h)
 
 
