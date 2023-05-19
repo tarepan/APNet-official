@@ -6,7 +6,7 @@ import argparse
 import json
 import torch
 from utils import AttrDict
-from dataset import mel_spectrogram, load_wav
+from dataset import mel_spectrogram
 from models import Generator
 import soundfile as sf
 import librosa
@@ -25,6 +25,7 @@ def load_checkpoint(filepath, device):
 
 
 def get_mel(x):
+    # Mel-frequency Log-Amplitude spectrogram
     return mel_spectrogram(x, h.n_fft, h.num_mels, h.sampling_rate, h.hop_size, h.win_size, h.fmin, h.fmax)
 
 
