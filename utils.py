@@ -1,11 +1,16 @@
+from dataclasses import dataclass
 import glob
 import os
+import shutil
+
 import matplotlib
 import torch
 from torch.nn.utils import weight_norm
-matplotlib.use("Agg")
 import matplotlib.pylab as plt
-import shutil
+
+
+matplotlib.use("Agg")
+
 
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
@@ -13,12 +18,20 @@ class AttrDict(dict):
         self.__dict__ = self
 
 
-def build_env(config, config_name, path):
+def build_env(config: str, config_name: str, path: str):
+    """
+    Args:
+        config - Path to the config file
+        config_name - New config file name
+        path - New config file's parent directory path
+    """
     t_path = os.path.join(path, config_name)
+    # If specify same config, pass
     if config != t_path:
         os.makedirs(path, exist_ok=True)
-        shutil.copyfile(config, os.path.join(path, config_name))
-        
+        shutil.copyfile(config, t_path)
+
+
 def plot_spectrogram(spectrogram):
     fig, ax = plt.subplots(figsize=(10, 2))
     im = ax.imshow(spectrogram, aspect="auto", origin="lower",
