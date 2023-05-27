@@ -29,7 +29,7 @@ def mel_spectrogram(
     """waveform to Mel-frequency Log-Amplitude spectrogram."""
 
     # MelBasis and Window
-    mel = librosa_mel_fn(sampling_rate, n_fft, num_mels, fmin, fmax)
+    mel = librosa_mel_fn(sr=sampling_rate, n_fft=n_fft, n_mels=num_mels, fmin=fmin, fmax=fmax)
     mel_basis = torch.from_numpy(mel).float().to(y.device)
     hann_window = torch.hann_window(win_size).to(y.device)
 

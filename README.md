@@ -24,7 +24,7 @@ Clone of official ***APNet***, all-frame-level mag/phase neural vocoder.
 ### Install
 ```bash
 # pip install "torch==1.8.1+cu111" -q
-pip install numpy==1.21.6 librosa==0.9.1 soundfile==0.10.3 matplotlib==3.1.3
+pip install numpy==1.21.6 soundfile==0.10.3 matplotlib==3.1.3
 ```
 <!-- pip install git+https://github.com/tarepan/APNet-official -->
 
