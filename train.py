@@ -113,18 +113,19 @@ def train(h: GlobalConf):
             optim_g.zero_grad()
 
             # G_Loss
-            ## Losses defined on log amplitude spectra
+            ## log-Amplitude spectra
             L_A = amplitude_loss(logamp, logamp_g)
-            ## Losses defined on phase spectra
+            ## Phase spectra
             L_IP, L_GD, L_PTD = phase_loss(pha, pha_g, h.n_fft, pha.size()[-1])
             L_P = L_IP + L_GD + L_PTD
-            ## Losses defined on reconstructed STFT spectra
+            ## STFT spectra
             _, _, rea_g_final, imag_g_final = amp_pha_specturm(y_g.squeeze(1), h.n_fft, h.hop_size, h.win_size)
             L_C = STFT_consistency_loss(rea_g, rea_g_final, imag_g, imag_g_final)
             L_R = F.l1_loss(rea, rea_g)
             L_I = F.l1_loss(imag, imag_g)
-            L_S = L_C + 2.25 * (L_R + L_I)
-            ## Discriminator loss
+            w_ri = 2.25
+            L_S = L_C + w_ri * (L_R + L_I)
+            ## Waveform
             _, y_df_g, fmap_f_r, fmap_f_g = mpd(y, y_g)
             _, y_ds_g, fmap_s_r, fmap_s_g = msd(y, y_g)
             ### Feature matching loss
@@ -135,13 +136,15 @@ def train(h: GlobalConf):
             loss_gen_f, _ = generator_loss(y_df_g)
             loss_gen_s, _ = generator_loss(y_ds_g)
             L_GAN_G = loss_gen_s + loss_gen_f
-            ## Mel loss
+            ### Mel loss
             y_g_mel = mel_spectrogram(y_g.squeeze(1), h.n_fft, h.num_mels, h.sampling_rate, h.hop_size, h.win_size, h.fmin, h.fmax)
             L_Mel = F.l1_loss(x, y_g_mel)
-            # Losses defined on final waveforms
-            L_W = L_GAN_G + L_FM + 45 * L_Mel
-
-            L_G = 45 * L_A + 100 * L_P + 20 * L_S + L_W
+            ###
+            w_mel = 45
+            L_W = L_GAN_G + L_FM + w_mel * L_Mel
+            ## Total
+            w_a, w_p, w_s = 45, 100, 20
+            L_G = w_a * L_A + w_p * L_P + w_s * L_S + L_W
             # G_Backward/Optim
             L_G.backward()
             optim_g.step()
