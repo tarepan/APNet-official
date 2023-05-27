@@ -164,6 +164,7 @@ class DiscriminatorP(torch.nn.Module):
 
 
 class MultiPeriodDiscriminator(torch.nn.Module):
+    """5-periods MDP, p=2/3/5/7/11"""
     def __init__(self):
         super(MultiPeriodDiscriminator, self).__init__()
         self.discriminators = nn.ModuleList([
@@ -219,6 +220,7 @@ class DiscriminatorS(torch.nn.Module):
 
 
 class MultiScaleDiscriminator(torch.nn.Module):
+    """3-scale MSD, x1/x2/x4"""
     def __init__(self):
         super(MultiScaleDiscriminator, self).__init__()
         self.discriminators = nn.ModuleList([

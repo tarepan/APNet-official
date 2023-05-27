@@ -61,12 +61,12 @@ def inference(h):
                 x = get_mel(raw_wav.unsqueeze(0))
             
             logamp_g, pha_g, _, _, y_g = generator(x)
-            audio = y_g.squeeze()
+            audio  =      y_g.squeeze()
             logamp = logamp_g.squeeze()
-            pha = pha_g.squeeze()
-            audio = audio.cpu().numpy()
-            logamp = logamp.cpu().numpy()
-            pha = pha.cpu().numpy()
+            pha    =    pha_g.squeeze()
+            audio  =    audio.cpu().numpy()
+            logamp =   logamp.cpu().numpy()
+            pha    =      pha.cpu().numpy()
 
             sf.write(os.path.join(h.test_output_dir, filename.split('.')[0]+'.wav'), audio, h.sampling_rate,'PCM_16')
             np.save(os.path.join(h.test_output_dir, filename.split('.')[0]+'_logamp.npy'), logamp)
