@@ -7,15 +7,6 @@ from librosa.filters import mel as librosa_mel_fn
 import librosa
 
 
-def load_wav(full_path: str, sample_rate: int):
-    """Load resampled mono waveform in range [-1, 1]."""
-    return librosa.load(full_path, sr=sample_rate, mono=True)[0]
-
-
-def _spectral_normalize_torch(magnitudes: Tensor):
-    return torch.log(torch.clamp(magnitudes, min=1e-5))
-
-
 def mel_spectrogram(
         y: Tensor, # :: (*, T)           - Waveform
         n_fft,
@@ -33,6 +24,7 @@ def mel_spectrogram(
     mel_basis = torch.from_numpy(mel).float().to(y.device)
     hann_window = torch.hann_window(win_size).to(y.device)
 
+    # TODO: >PT2.0
     # Linear-frequency Linear-Amplitude spectrogram
     spec = torch.stft(y, n_fft, hop_length=hop_size, win_length=win_size, window=hann_window, center=True)
     spec = torch.sqrt(spec.pow(2).sum(-1)+(1e-9))
@@ -41,9 +33,9 @@ def mel_spectrogram(
     melspec = torch.matmul(mel_basis, spec)
 
     # Mel-frequency Log-Amplitude spectrogram
-    melspec = _spectral_normalize_torch(melspec)
+    logmelspec = torch.log(torch.clamp(melspec, min=1e-5))
 
-    return melspec
+    return logmelspec
 
 
 def amp_pha_specturm(
@@ -60,6 +52,7 @@ def amp_pha_specturm(
 
     hann_window=torch.hann_window(win_size).to(y.device)
 
+    # TODO: for >PT2.0
     # :: (B, Freq, Frame, RealImag=2) - Linear-frequency Linear-Amplitude spectrogram
     spec = torch.stft(y, n_fft, hop_length=hop_size, win_length=win_size, window=hann_window, center=True)
 
@@ -89,7 +82,9 @@ def get_dataset_filelist(input_training_wav_list,input_validation_wav_list):
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, training_files, segment_size, n_fft, num_mels,
-                 hop_size, win_size, sampling_rate,  fmin, fmax, split=True, shuffle=True, n_cache_reuse=1,
+                 hop_size, win_size, sampling_rate,  fmin, fmax,
+                 split:   bool, # Whether to clip/pad audio into fixed segment size
+                 shuffle: bool, # Wether to shuffle datum id (not per-epoch dataset shuffle config)
                 ):
         self.audio_files = training_files
         random.seed(1234)
@@ -100,30 +95,25 @@ class Dataset(torch.utils.data.Dataset):
         self.split = split
         self.n_fft, self.hop_size, self.win_size = n_fft, hop_size, win_size
         self.num_mels, self.fmin, self.fmax = num_mels, fmin, fmax
-        self.cached_wav, self.n_cache_reuse, self._cache_ref_count = None, n_cache_reuse, 0
 
     def __getitem__(self, index):
         """
         Returns:
-            mel           :: (Freq, Frame) - Mel-frequency Log-Amplitude spectrogram
-            log_amplitude :: (Freq, Frame)
-            phase         :: (Freq, Frame)
-            real          :: (Freq, Frame)
-            imag          :: (Freq, Frame)
+            mel           :: (Freq, Frame) - Mel-frequency    Log-Amplitude spectrogram
+            log_amplitude :: (Freq, Frame) - Linear-frequency Log-Amplitude spectrogram
+            phase         :: (Freq, Frame) - (maybe) Phase spectrogram
+            real          :: (Freq, Frame) - STFT real      value
+            imag          :: (Freq, Frame) - STFT imaginary value
             audio         :: (T,)          - Waveform, in range [-1, 1]
         """
+
         # Load audio
         filename = self.audio_files[index]
-        if self._cache_ref_count == 0:
-            audio = load_wav(filename, self.sampling_rate)
-            self.cached_wav = audio
-            self._cache_ref_count = self.n_cache_reuse
-        else:
-            audio = self.cached_wav
-            self._cache_ref_count -= 1
+        audio = librosa.load(filename, sr=self.sampling_rate, mono=True)[0]
 
         # audio :: (1, T) - Waveform in range [-1, 1]
         audio = torch.FloatTensor(audio).unsqueeze(0)
+        ## Clipping | Padding
         if self.split:
             if audio.size(1) >= self.segment_size:
                 max_audio_start = audio.size(1) - self.segment_size
@@ -132,12 +122,12 @@ class Dataset(torch.utils.data.Dataset):
             else:
                 audio = torch.nn.functional.pad(audio, (0, self.segment_size - audio.size(1)), 'constant')
 
+        # TODO: preprocessing
         # mel :: (1, Freq, Frame) - Mel-frequency Log-Amplitude spectrogram
         mel = mel_spectrogram(audio, self.n_fft, self.num_mels, self.sampling_rate, self.hop_size, self.win_size, self.fmin, self.fmax)
 
         # :: (1, Freq, Frame)
         log_amplitude, phase, real, imag = amp_pha_specturm(audio, self.n_fft, self.hop_size, self.win_size)
-
 
         return (mel.squeeze(), log_amplitude.squeeze(), phase.squeeze(), real.squeeze(), imag.squeeze(), audio.squeeze(0))
 

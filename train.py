@@ -58,10 +58,9 @@ def train(h: GlobalConf):
 
     # Data
     training_filelist, validation_filelist = get_dataset_filelist(h.input_training_wav_list, h.input_validation_wav_list)
-    trainset = Dataset(training_filelist,
-        h.segment_size, h.n_fft, h.num_mels, h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax, split=True,  shuffle=True,  n_cache_reuse=0)
-    validset = Dataset(validation_filelist,
-        h.segment_size, h.n_fft, h.num_mels, h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax, split=False, shuffle=False, n_cache_reuse=0)
+    trainset = Dataset(training_filelist,   h.segment_size, h.n_fft, h.num_mels, h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax, split=True,  shuffle=True)
+    validset = Dataset(validation_filelist, h.segment_size, h.n_fft, h.num_mels, h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax, split=False, shuffle=False)
+    # TODO: shuffle in training
     train_loader      = DataLoader(trainset, num_workers=h.num_workers, shuffle=False, batch_size=h.batch_size, pin_memory=True, drop_last=True)
     validation_loader = DataLoader(validset, num_workers=1,             shuffle=False, batch_size=1,            pin_memory=True, drop_last=True)
 
