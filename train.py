@@ -236,14 +236,14 @@ def train(h: GlobalConf):
 
                         # Log Audio & Mel image
                         if j <= 4:
+                            # Transform
+                            y_g_spec = mel_spectrogram(y_g.squeeze(1), h.n_fft, h.num_mels, h.sampling_rate, h.hop_size, h.win_size, h.fmin, h.fmax)
                             # Ground-Truth (only global step 0)
                             if steps == 0:
-                                sw.add_audio('gt/y_{}'.format(j), y[0], steps, h.sampling_rate)
-                                sw.add_figure('gt/y_spec_{}'.format(j), plot_spectrogram(x[0]), steps)
-                            sw.add_audio('generated/y_g_{}'.format(j), y_g[0], steps, h.sampling_rate)
-                            # Inference
-                            y_g_spec = mel_spectrogram(y_g.squeeze(1), h.n_fft, h.num_mels, h.sampling_rate, h.hop_size, h.win_size, h.fmin, h.fmax)
-                            sw.add_figure('generated/y_g_spec_{}'.format(j), plot_spectrogram(y_g_spec.squeeze(0).cpu().numpy()), steps)
+                                sw.add_audio(f'gt/y_{j}',                                    y[0].cpu().numpy(),  steps, h.sampling_rate)
+                                sw.add_figure(f'gt/y_spec_{j}',      plot_spectrogram(       x[0].cpu().numpy()), steps)
+                            sw.add_audio(f'generated/y_g_{j}',                             y_g[0].cpu().numpy(),  steps, h.sampling_rate)
+                            sw.add_figure(f'generated/y_g_spec_{j}', plot_spectrogram(y_g_spec[0].cpu().numpy()), steps)
 
                     # Average
                     val_A_err   =   val_A_err_tot / (j+1)
