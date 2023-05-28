@@ -36,6 +36,7 @@
     "PSP_output_R_conv_kernel_size": 7,
     "PSP_output_I_conv_kernel_size": 7,
 
+    "wo_d": false,
     "segment_size": 8000,
     "num_mels": 80,
     "n_fft": 1024,

@@ -107,17 +107,19 @@ def train(h: GlobalConf):
             # Common_Forward
             logamp_g, pha_g, rea_g, imag_g, y_g = generator(x)
 
-            optim_d.zero_grad()
-            # D_Forward
-            y_df_hat_r, y_df_hat_g, _, _ = mpd(y, y_g.detach())
-            y_ds_hat_r, y_ds_hat_g, _, _ = msd(y, y_g.detach())
-            # D_Loss
-            loss_disc_f, _, _ = discriminator_loss(y_df_hat_r, y_df_hat_g)
-            loss_disc_s, _, _ = discriminator_loss(y_ds_hat_r, y_ds_hat_g)
-            L_D = loss_disc_s + loss_disc_f
-            # D_Backward/Optim
-            L_D.backward()
-            optim_d.step()
+            # Discriminator
+            if not h.wo_d:
+                optim_d.zero_grad()
+                # D_Forward
+                y_df_hat_r, y_df_hat_g, _, _ = mpd(y, y_g.detach())
+                y_ds_hat_r, y_ds_hat_g, _, _ = msd(y, y_g.detach())
+                # D_Loss
+                loss_disc_f, _, _ = discriminator_loss(y_df_hat_r, y_df_hat_g)
+                loss_disc_s, _, _ = discriminator_loss(y_ds_hat_r, y_ds_hat_g)
+                L_D = loss_disc_s + loss_disc_f
+                # D_Backward/Optim
+                L_D.backward()
+                optim_d.step()
 
             # Generator
             optim_g.zero_grad()
@@ -136,22 +138,24 @@ def train(h: GlobalConf):
             w_ri = 2.25
             L_S = L_C + w_ri * (L_R + L_I)
             ## Waveform
-            _, y_df_g, fmap_f_r, fmap_f_g = mpd(y, y_g)
-            _, y_ds_g, fmap_s_r, fmap_s_g = msd(y, y_g)
-            ### Feature matching loss
-            loss_fm_f = feature_loss(fmap_f_r, fmap_f_g)
-            loss_fm_s = feature_loss(fmap_s_r, fmap_s_g)
-            L_FM = loss_fm_s + loss_fm_f
-            ### Adversarial loss
-            loss_gen_f, _ = generator_loss(y_df_g)
-            loss_gen_s, _ = generator_loss(y_ds_g)
-            L_GAN_G = loss_gen_s + loss_gen_f
+            if not h.wo_d:
+                _, y_df_g, fmap_f_r, fmap_f_g = mpd(y, y_g)
+                _, y_ds_g, fmap_s_r, fmap_s_g = msd(y, y_g)
+                ### Feature matching loss
+                loss_fm_f = feature_loss(fmap_f_r, fmap_f_g)
+                loss_fm_s = feature_loss(fmap_s_r, fmap_s_g)
+                L_FM = loss_fm_s + loss_fm_f
+                ### Adversarial loss
+                loss_gen_f, _ = generator_loss(y_df_g)
+                loss_gen_s, _ = generator_loss(y_ds_g)
+                L_GAN_G = loss_gen_s + loss_gen_f
             ### Mel loss
             y_g_mel = mel_spectrogram(y_g.squeeze(1), h.n_fft, h.num_mels, h.sampling_rate, h.hop_size, h.win_size, h.fmin, h.fmax)
             L_Mel = F.l1_loss(x, y_g_mel)
             ###
             w_mel = 45
-            L_W = L_GAN_G + L_FM + w_mel * L_Mel
+            L_W = L_GAN_G + L_FM + w_mel * L_Mel if not h.wo_d else w_mel * L_Mel
+
             ## Total
             w_a, w_p, w_s = 45, 100, 20
             L_G = w_a * L_A + w_p * L_P + w_s * L_S + L_W
