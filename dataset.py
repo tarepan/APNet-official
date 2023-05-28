@@ -19,7 +19,8 @@ def mel_spectrogram(
     ) -> Tensor:   # :: (*, Freq, Frame) - Mel-frequency Log-Amplitude spectrogram
     """waveform to Mel-frequency Log-Amplitude spectrogram."""
 
-    melspec = MelSpectrogram(sampling_rate, n_fft, win_size, hop_size, fmin, fmax, n_mels=num_mels, power=1, norm="slaney", mel_scale="slaney")(y)
+    menizer = MelSpectrogram(sampling_rate, n_fft, win_size, hop_size, fmin, fmax, n_mels=num_mels, power=1, norm="slaney", mel_scale="slaney").to(y.device)
+    melspec = menizer(y)
     logmelspec = torch.log(torch.clamp(melspec, min=1e-5))
 
     return logmelspec
