@@ -1,6 +1,9 @@
 {
-    "input_training_wav_list": "/home/aiyang/Data_LJSpeech/list/waveform_16k_train.scp",
+    "input_training_wav_list": "CORPUSY:LJ",
     "input_validation_wav_list": "/home/aiyang/Data_LJSpeech/list/waveform_16k_valid.scp",
+    "n_train": 10480,
+    "n_test":   1310,
+    "data_root": "/content/gdrive/MyDrive/ML_data",
     "test_input_wavs_dir":"/home/aiyang/Data_LJSpeech/waveform_16k/test",
     "test_input_mels_dir":"/home/aiyang/Data_LJSpeech/mels/test",
     "test_mel_load": 0,

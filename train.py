@@ -64,9 +64,9 @@ def train(h: GlobalConf):
         training_filelist, validation_filelist = get_dataset_filelist(h.input_training_wav_list, h.input_validation_wav_list)
     else:
         # e.g. `CORPUSY:LJ`
-        corpus = load_preset(h.input_training_wav_list[8:], download=False)
+        corpus = load_preset(h.input_training_wav_list[8:], root=h.data_root, download=False)
         corpus.get_contents()
-        all_uttr_paths = list(map(lambda id: corpus.get_item_path(id), corpus.get_identities()))
+        all_uttr_paths = list(map(lambda id: corpus.get_item_path(id).with_suffix(".16k.wav"), corpus.get_identities()))
         training_filelist, validation_filelist = all_uttr_paths[:h.n_train], all_uttr_paths[h.n_train:-1*h.n_test]
     ## Dataset/Loader
     trainset = Dataset(training_filelist,   h.segment_size, h.n_fft, h.num_mels, h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax, split=True,  shuffle=True)
