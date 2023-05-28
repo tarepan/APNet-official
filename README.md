@@ -72,8 +72,9 @@ For detail, jump to ☞ [![ColabBadge]][notebook] and check it.   -->
 
 ### Performance <!-- omit in toc -->
 - training
-  - x.x [iter/sec] @ NVIDIA X0 on Google Colaboratory (AMP+)
-  - take about y days for whole training
+  <!-- - x.x [iter/sec] @ NVIDIA T4 on Google Colaboratory (AMP-) -->
+  - 20 [min/epoch] @ NVIDIA T4 on Google Colaboratory (AMP-)
+  - take about 43 days for whole training (3100 epochs)
 - inference
   - z.z [sec/sample] @ xx
 
