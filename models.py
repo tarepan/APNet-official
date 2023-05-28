@@ -4,6 +4,8 @@ import torch.nn.functional as F
 import torch.nn as nn
 from torch.nn import Conv1d, AvgPool1d, Conv2d
 from torch.nn.utils import weight_norm, spectral_norm
+from extorch import Conv1dEx
+
 from utils import init_weights
 
 LRELU_SLOPE = 0.1
@@ -11,7 +13,7 @@ LRELU_SLOPE = 0.1
 
 class ResBlock(torch.nn.Module):
     """ResBlock Q=3, Res[LReLU-DConv-LReLU-Conv]x3."""
-    def __init__(self, channels: int, kernel_size: int, dilation: tuple[int, int, int]):
+    def __init__(self, channels: int, kernel_size: int, dilation: tuple[int, int, int], causal: bool = False):
         super().__init__()
 
         # Validation
@@ -19,16 +21,16 @@ class ResBlock(torch.nn.Module):
 
         # DilatedConv
         self.convs1 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, dilation=dilation[0], padding="same")),
-            weight_norm(Conv1d(channels, channels, kernel_size, dilation=dilation[1], padding="same")),
-            weight_norm(Conv1d(channels, channels, kernel_size, dilation=dilation[2], padding="same")),
+            weight_norm(Conv1dEx(channels, channels, kernel_size, dilation=dilation[0], padding="same", causal=causal)),
+            weight_norm(Conv1dEx(channels, channels, kernel_size, dilation=dilation[1], padding="same", causal=causal)),
+            weight_norm(Conv1dEx(channels, channels, kernel_size, dilation=dilation[2], padding="same", causal=causal)),
         ])
         self.convs1.apply(init_weights)
         # Conv
         self.convs2 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size,                       padding="same")),
-            weight_norm(Conv1d(channels, channels, kernel_size,                       padding="same")),
-            weight_norm(Conv1d(channels, channels, kernel_size,                       padding="same")),
+            weight_norm(Conv1dEx(channels, channels, kernel_size,                       padding="same", causal=causal)),
+            weight_norm(Conv1dEx(channels, channels, kernel_size,                       padding="same", causal=causal)),
+            weight_norm(Conv1dEx(channels, channels, kernel_size,                       padding="same", causal=causal)),
         ])
         self.convs2.apply(init_weights)
 
@@ -60,21 +62,21 @@ class Generator(torch.nn.Module):
         freq = h.n_fft // 2 + 1
 
         # PreNets
-        self.ASP_input_conv = weight_norm(Conv1d(h.num_mels, h.ASP_channel, h.ASP_input_conv_kernel_size, padding="same"))
-        self.PSP_input_conv = weight_norm(Conv1d(h.num_mels, h.PSP_channel, h.PSP_input_conv_kernel_size, padding="same"))
+        self.ASP_input_conv = weight_norm(Conv1dEx(h.num_mels, h.ASP_channel, h.ASP_input_conv_kernel_size, padding="same", causal=h.causal))
+        self.PSP_input_conv = weight_norm(Conv1dEx(h.num_mels, h.PSP_channel, h.PSP_input_conv_kernel_size, padding="same", causal=h.causal))
 
         # MainNets - `P`-kernel multi receptive field network for ASP and PSP
         self.ASP_ResNet = nn.ModuleList()
         for k, d in zip(h.ASP_resblock_kernel_sizes, h.ASP_resblock_dilation_sizes):
-            self.ASP_ResNet.append(ResBlock(h.ASP_channel, k, d))
+            self.ASP_ResNet.append(ResBlock(h.ASP_channel, k, d, h.causal))
         self.PSP_ResNet = nn.ModuleList()
         for k, d in zip(h.PSP_resblock_kernel_sizes, h.PSP_resblock_dilation_sizes):
-            self.PSP_ResNet.append(ResBlock(h.PSP_channel, k, d))
+            self.PSP_ResNet.append(ResBlock(h.PSP_channel, k, d, h.causal))
 
         # PostNet
-        self.ASP_output_conv   = weight_norm(Conv1d(h.ASP_channel, freq, h.ASP_output_conv_kernel_size,   padding="same"))
-        self.PSP_output_R_conv = weight_norm(Conv1d(h.PSP_channel, freq, h.PSP_output_R_conv_kernel_size, padding="same"))
-        self.PSP_output_I_conv = weight_norm(Conv1d(h.PSP_channel, freq, h.PSP_output_I_conv_kernel_size, padding="same"))
+        self.ASP_output_conv   = weight_norm(Conv1dEx(h.ASP_channel, freq, h.ASP_output_conv_kernel_size,   padding="same", causal=h.causal))
+        self.PSP_output_R_conv = weight_norm(Conv1dEx(h.PSP_channel, freq, h.PSP_output_R_conv_kernel_size, padding="same", causal=h.causal))
+        self.PSP_output_I_conv = weight_norm(Conv1dEx(h.PSP_channel, freq, h.PSP_output_I_conv_kernel_size, padding="same", causal=h.causal))
         self.ASP_output_conv.apply(init_weights)
         self.PSP_output_R_conv.apply(init_weights)
         self.PSP_output_I_conv.apply(init_weights)
@@ -197,15 +199,16 @@ class DiscriminatorS(torch.nn.Module):
         super(DiscriminatorS, self).__init__()
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
         self.convs = nn.ModuleList([
-            norm_f(Conv1d(1, 128, 15, 1, padding=7)),
-            norm_f(Conv1d(128, 128, 41, 2, groups=4, padding=20)),
-            norm_f(Conv1d(128, 256, 41, 2, groups=16, padding=20)),
-            norm_f(Conv1d(256, 512, 41, 4, groups=16, padding=20)),
-            norm_f(Conv1d(512, 1024, 41, 4, groups=16, padding=20)),
-            norm_f(Conv1d(1024, 1024, 41, 1, groups=16, padding=20)),
-            norm_f(Conv1d(1024, 1024, 5, 1, padding=2)),
+            norm_f(Conv1d(   1,  128, 15,               padding="same")),
+            norm_f(Conv1d( 128,  128, 41, 2, groups= 4, padding=20)),
+            norm_f(Conv1d( 128,  256, 41, 2, groups=16, padding=20)),
+            norm_f(Conv1d( 256,  512, 41, 4, groups=16, padding=20)),
+            norm_f(Conv1d( 512, 1024, 41, 4, groups=16, padding=20)),
+            norm_f(Conv1d(1024, 1024, 41,    groups=16, padding="same")),
+            norm_f(Conv1d(1024, 1024,  5,               padding="same")),
         ])
-        self.conv_post = norm_f(Conv1d(1024, 1, 3, 1, padding=1))
+        self.conv_post = \
+            norm_f(Conv1d(1024,    1,  3,               padding="same"))
 
     def forward(self, x):
         fmap = []

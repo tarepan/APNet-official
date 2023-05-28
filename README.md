@@ -24,7 +24,7 @@ Clone of official ***APNet***, all-frame-level mag/phase neural vocoder.
 ### Install
 ```bash
 # pip install "torch==1.8.1+cu111" -q
-pip install soundfile==0.10.3
+pip install soundfile==0.10.3 git+https://github.com/tarepan/extorch.git
 ```
 <!-- pip install git+https://github.com/tarepan/APNet-official -->
 
