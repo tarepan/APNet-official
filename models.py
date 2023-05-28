@@ -15,7 +15,7 @@ class ResBlock(torch.nn.Module):
         super().__init__()
 
         # Validation
-        assert kernel_size % 2 == 0, f"Support only odd-number kernel, but set to {kernel_size}."
+        assert kernel_size % 2 == 1, f"Support only odd-number kernel, but set to {kernel_size}."
 
         # DilatedConv
         self.convs1 = nn.ModuleList([
@@ -48,11 +48,11 @@ class Generator(torch.nn.Module):
         super().__init__()
 
         # Validation
-        assert h.PSP_input_conv_kernel_size    % 2 == 0, f"Support only odd-number kernel, but set to {h.PSP_input_conv_kernel_size}."
-        assert h.ASP_input_conv_kernel_size    % 2 == 0, f"Support only odd-number kernel, but set to {h.ASP_input_conv_kernel_size}."
-        assert h.ASP_output_conv_kernel_size   % 2 == 0, f"Support only odd-number kernel, but set to {h.ASP_output_conv_kernel_size}."
-        assert h.PSP_output_R_conv_kernel_size % 2 == 0, f"Support only odd-number kernel, but set to {h.PSP_output_R_conv_kernel_size}."
-        assert h.PSP_output_I_conv_kernel_size % 2 == 0, f"Support only odd-number kernel, but set to {h.PSP_output_I_conv_kernel_size}."
+        assert h.PSP_input_conv_kernel_size    % 2 == 1, f"Support only odd-number kernel, but set to {h.PSP_input_conv_kernel_size}."
+        assert h.ASP_input_conv_kernel_size    % 2 == 1, f"Support only odd-number kernel, but set to {h.ASP_input_conv_kernel_size}."
+        assert h.ASP_output_conv_kernel_size   % 2 == 1, f"Support only odd-number kernel, but set to {h.ASP_output_conv_kernel_size}."
+        assert h.PSP_output_R_conv_kernel_size % 2 == 1, f"Support only odd-number kernel, but set to {h.PSP_output_R_conv_kernel_size}."
+        assert h.PSP_output_I_conv_kernel_size % 2 == 1, f"Support only odd-number kernel, but set to {h.PSP_output_I_conv_kernel_size}."
 
         self.h = h
         self.asp_num_kernels = len(h.ASP_resblock_kernel_sizes) # `P` of ASP
