@@ -86,7 +86,7 @@ class Generator(torch.nn.Module):
         Returns:
             logamp - Linear-Frequency Log-Amplitude spectrogram
             pha
-            rea
+            real
             imag
             audio
         """
@@ -117,14 +117,14 @@ class Generator(torch.nn.Module):
         pha = torch.atan2(I, R)
 
         # Complex spectrogram
-        rea  = torch.exp(logamp) * torch.cos(pha)
+        spec = torch.exp(logamp) * (torch.exp(1j * pha))
+        real = torch.exp(logamp) * torch.cos(pha)
         imag = torch.exp(logamp) * torch.sin(pha)
-        spec = torch.cat((rea.unsqueeze(-1), imag.unsqueeze(-1)), -1)
 
         # iSTFT
         audio = torch.istft(spec, self.h.n_fft, hop_length=self.h.hop_size, win_length=self.h.win_size, window=torch.hann_window(self.h.win_size).to(mel.device), center=True)
 
-        return logamp, pha, rea, imag, audio.unsqueeze(1)
+        return logamp, pha, real, imag, audio.unsqueeze(1)
 
 
 class DiscriminatorP(torch.nn.Module):
