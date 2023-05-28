@@ -8,6 +8,8 @@ import torch
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
+from speechcorpusy import load_preset
+
 from dataset import Dataset, mel_spectrogram, amp_pha_specturm, get_dataset_filelist
 from models import Generator, MultiPeriodDiscriminator, MultiScaleDiscriminator, feature_loss, generator_loss,\
     discriminator_loss, amplitude_loss, phase_loss, STFT_consistency_loss
@@ -57,7 +59,16 @@ def train(h: GlobalConf):
     scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=h.lr_decay, last_epoch=last_epoch)
 
     # Data
-    training_filelist, validation_filelist = get_dataset_filelist(h.input_training_wav_list, h.input_validation_wav_list)
+    ## Path list
+    if h.input_training_wav_list[:8] != "CORPUSY:":
+        training_filelist, validation_filelist = get_dataset_filelist(h.input_training_wav_list, h.input_validation_wav_list)
+    else:
+        # e.g. `CORPUSY:LJ`
+        corpus = load_preset(h.input_training_wav_list[8:], download=False)
+        corpus.get_contents()
+        all_uttr_paths = list(map(lambda id: corpus.get_item_path(id), corpus.get_identities()))
+        training_filelist, validation_filelist = all_uttr_paths[:h.n_train], all_uttr_paths[h.n_train:-1*h.n_test]
+    ## Dataset/Loader
     trainset = Dataset(training_filelist,   h.segment_size, h.n_fft, h.num_mels, h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax, split=True,  shuffle=True)
     validset = Dataset(validation_filelist, h.segment_size, h.n_fft, h.num_mels, h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax, split=False, shuffle=False)
     # TODO: shuffle in training

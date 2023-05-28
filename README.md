@@ -37,7 +37,7 @@ Dataset: Write the list paths of training set and validation set to `input_train
 #### Run
 ```
 tensorboard --logdir=cp_APNet/logs
-CUDA_VISIBLE_DEVICES=0 python train.py
+python train.py
 ```
 
 <!-- Jump to ☞ [![ColabBadge]][notebook], then Run. That's all!  
@@ -60,7 +60,7 @@ Audio sampling rate should be 16kHz.
 Write the checkpoint path to `checkpoint_file_load` in `config.json`.
 
 ```
-CUDA_VISIBLE_DEVICES=<0|CPU> python inference.py
+python inference.py
 ```
 
 <!-- Both CLI and Python supported.  

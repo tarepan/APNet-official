@@ -66,7 +66,9 @@ def get_dataset_filelist(input_training_wav_list,input_validation_wav_list):
 
 
 class Dataset(torch.utils.data.Dataset):
-    def __init__(self, training_files, segment_size, n_fft, num_mels,
+    def __init__(self,
+                 training_files: list[str], # List of 16kHz audio file path
+                 segment_size, n_fft, num_mels,
                  hop_size, win_size, sampling_rate,  fmin, fmax,
                  split:   bool, # Whether to clip/pad audio into fixed segment size
                  shuffle: bool, # Wether to shuffle datum id (not per-epoch dataset shuffle config)

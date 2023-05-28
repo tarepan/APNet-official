@@ -16,6 +16,8 @@ matplotlib.use("Agg")
 class GlobalConf:
     input_training_wav_list:   str   # -
     input_validation_wav_list: str   # -
+    n_train:                   int   # -
+    n_test:                    int   # -
     test_input_wavs_dir:       str   # -
     test_input_mels_dir:       str   # -
     test_mel_load:             int   # -
