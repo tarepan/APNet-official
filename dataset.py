@@ -5,7 +5,7 @@ from torch import Tensor
 import torch.utils.data
 from librosa.filters import mel as librosa_mel_fn
 import librosa
-
+from torchaudio.transforms import MelSpectrogram
 
 def mel_spectrogram(
         y: Tensor, # :: (*, T)           - Waveform
@@ -19,20 +19,7 @@ def mel_spectrogram(
     ) -> Tensor:   # :: (*, Freq, Frame) - Mel-frequency Log-Amplitude spectrogram
     """waveform to Mel-frequency Log-Amplitude spectrogram."""
 
-    # MelBasis and Window
-    mel = librosa_mel_fn(sr=sampling_rate, n_fft=n_fft, n_mels=num_mels, fmin=fmin, fmax=fmax)
-    mel_basis = torch.from_numpy(mel).float().to(y.device)
-    hann_window = torch.hann_window(win_size).to(y.device)
-
-    # TODO: >PT2.0
-    # Linear-frequency Linear-Amplitude spectrogram
-    spec = torch.stft(y, n_fft, hop_length=hop_size, win_length=win_size, window=hann_window, center=True)
-    spec = torch.sqrt(spec.pow(2).sum(-1)+(1e-9))
-
-    # Mel-frequency Linear-Amplitude spectrogram
-    melspec = torch.matmul(mel_basis, spec)
-
-    # Mel-frequency Log-Amplitude spectrogram
+    melspec = MelSpectrogram(sampling_rate, n_fft, win_size, hop_size, fmin, fmax, n_mels=num_mels, power=1, norm="slaney", mel_scale="slaney")(y)
     logmelspec = torch.log(torch.clamp(melspec, min=1e-5))
 
     return logmelspec
@@ -45,26 +32,24 @@ def amp_pha_specturm(
         win_size,
     ) -> tuple[
         Tensor, # log_amplitude :: (B, Freq, Frame) - Linear-frequency Log-Amplitude spectrogram
-        Tensor, # phase         :: (B, Freq, Frame) - (maybe) Phase spectrogram
+        Tensor, # phase         :: (B, Freq, Frame) - Phase spectrogram, in range [-pi, -pi]
         Tensor, # real          :: (B, Freq, Frame) - STFT real      value
         Tensor, # imag          :: (B, Freq, Frame) - STFT imaginary value
         ]:
 
-    hann_window=torch.hann_window(win_size).to(y.device)
-
-    # TODO: for >PT2.0
     # :: (B, Freq, Frame, RealImag=2) - Linear-frequency Linear-Amplitude spectrogram
-    spec = torch.stft(y, n_fft, hop_length=hop_size, win_length=win_size, window=hann_window, center=True)
+    hann_window=torch.hann_window(win_size).to(y.device)
+    spec = torch.view_as_real(torch.stft(y, n_fft, hop_length=hop_size, win_length=win_size, window=hann_window, center=True, return_complex=True))
 
     # real & imaginary value :: (B, Freq, Frame)
     real = spec[:, :, :, 0]
     imag = spec[:, :, :, 1]
 
     # :: (B, Freq, Frame) - Linear-frequency Log-Amplitude spectrogram
-    log_amplitude = torch.log(torch.abs(torch.sqrt(torch.pow(real,2)+torch.pow(imag,2)))+1e-5)
+    log_amplitude = torch.log(torch.clamp(torch.sqrt(torch.pow(real,2)+torch.pow(imag,2)), min=1e-5))
 
-    # :: (B, Freq, Frame)
-    phase=torch.atan2(imag, real) #[batch_size, n_fft//2+1, frames]
+    # Phase :: (B, Freq, Frame) - Angle on complex plane, in range [-pi, -pi]
+    phase = torch.atan2(imag, real)
 
     return log_amplitude, phase, real, imag
 
@@ -101,7 +86,7 @@ class Dataset(torch.utils.data.Dataset):
         Returns:
             mel           :: (Freq, Frame) - Mel-frequency    Log-Amplitude spectrogram
             log_amplitude :: (Freq, Frame) - Linear-frequency Log-Amplitude spectrogram
-            phase         :: (Freq, Frame) - (maybe) Phase spectrogram
+            phase         :: (Freq, Frame) - Phase spectrogram, in range [-pi, -pi]
             real          :: (Freq, Frame) - STFT real      value
             imag          :: (Freq, Frame) - STFT imaginary value
             audio         :: (T,)          - Waveform, in range [-1, 1]
@@ -126,7 +111,7 @@ class Dataset(torch.utils.data.Dataset):
         # mel :: (1, Freq, Frame) - Mel-frequency Log-Amplitude spectrogram
         mel = mel_spectrogram(audio, self.n_fft, self.num_mels, self.sampling_rate, self.hop_size, self.win_size, self.fmin, self.fmax)
 
-        # :: (1, Freq, Frame)
+        # STFT features :: all (1, Freq, Frame)
         log_amplitude, phase, real, imag = amp_pha_specturm(audio, self.n_fft, self.hop_size, self.win_size)
 
         return (mel.squeeze(), log_amplitude.squeeze(), phase.squeeze(), real.squeeze(), imag.squeeze(), audio.squeeze(0))

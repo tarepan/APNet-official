@@ -85,7 +85,7 @@ def train(h: GlobalConf):
             x, logamp, pha, rea, imag, y = batch
             x      =      x.to(device, non_blocking=True) # :: (B, Freq, Frame) - Mel-frequency    Log-Amplitude spectrogram
             logamp = logamp.to(device, non_blocking=True) # :: (B, Freq, Frame) - Linear-frequency Log-Amplitude spectrogram
-            pha    =    pha.to(device, non_blocking=True) # :: (B, Freq, Frame) - (maybe) Phase spectrogram
+            pha    =    pha.to(device, non_blocking=True) # :: (B, Freq, Frame) - Phase spectrogram, in range [-pi, -pi]
             rea    =    rea.to(device, non_blocking=True) # :: (B, Freq, Frame) - STFT real      value
             imag   =   imag.to(device, non_blocking=True) # :: (B, Freq, Frame) - STFT imaginary value
             y      =      y.to(device, non_blocking=True) # :: (B, T)           - Gound-truth waveform, in range [-1, 1]
@@ -200,7 +200,7 @@ def train(h: GlobalConf):
                         x, logamp, pha, rea, imag, y = batch
                         x      =      x.to(device, non_blocking=True) # :: (B=1, Freq, Frame) - Mel-frequency    Log-Amplitude spectrogram
                         logamp = logamp.to(device, non_blocking=True) # :: (B=1, Freq, Frame) - Linear-frequency Log-Amplitude spectrogram
-                        pha    =    pha.to(device, non_blocking=True) # :: (B=1, Freq, Frame) - (maybe) Phase spectrogram
+                        pha    =    pha.to(device, non_blocking=True) # :: (B=1, Freq, Frame) - Phase spectrogram, in range [-pi, -pi]
                         rea    =    rea.to(device, non_blocking=True) # :: (B=1, Freq, Frame) - STFT real      value
                         imag   =   imag.to(device, non_blocking=True) # :: (B=1, Freq, Frame) - STFT imaginary value
                         y      =      y.to(device, non_blocking=True) # :: (B=1, T)           - Gound-truth waveform, in range [-1, 1]
