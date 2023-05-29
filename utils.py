@@ -55,7 +55,7 @@ class GlobalConf:
     unified_mainnet:               bool # Whether to use ASP/PSP unified generator
     causal:                        bool # Whether to use causal conv
     wo_d:                          bool # Whether to train without Discriminator
-
+    loss_on_wave:                  bool # Whether to use losses based on waveform
     segment_size:  int # ✔
     n_fft:         int # ✔
     hop_size:      int # ✔

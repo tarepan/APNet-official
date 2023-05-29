@@ -128,8 +128,8 @@ def train(h: GlobalConf):
             logamp_pred_wave, phase_pred_wave, real_pred_wave, imag_pred_wave = amp_pha_specturm(wave_pred.squeeze(1), h.n_fft, h.hop_size, h.win_size)
 
             # Loss mode - loss on direct network output STFT OR on final waveform
-            logamp_pred = logamp_pred_direct
-            phase_pred  = phase_pred_direct
+            logamp_pred = logamp_pred_direct if h.loss_on_wave else logamp_pred_wave
+            phase_pred  = phase_pred_direct  if h.loss_on_wave else phase_pred_wave
 
             # G_Loss
             ## log-Amplitude spectra
@@ -138,11 +138,12 @@ def train(h: GlobalConf):
             L_IP, L_GD, L_PTD = phase_loss(phase_gt, phase_pred, h.n_fft, phase_gt.size()[-1])
             L_P = L_IP + L_GD + L_PTD
             ## STFT spectra
-            L_C = STFT_consistency_loss(real_pred_direct, real_pred_wave, imag_pred_direct, imag_pred_wave)
-            L_R = F.l1_loss(real_gt, real_pred_direct)
-            L_I = F.l1_loss(imag_gt, imag_pred_direct)
+            if not h.loss_on_wave:
+                L_C = STFT_consistency_loss(real_pred_direct, real_pred_wave, imag_pred_direct, imag_pred_wave)
+                L_R = F.l1_loss(real_gt, real_pred_direct)
+                L_I = F.l1_loss(imag_gt, imag_pred_direct)
             w_ri = 2.25
-            L_S = L_C + w_ri * (L_R + L_I)
+            L_S = (L_C + w_ri * (L_R + L_I)) if not h.loss_on_wave else 0
             ## Waveform
             if not h.wo_d:
                 _, y_df_g, fmap_f_r, fmap_f_g = mpd(wave_gt, wave_pred)
@@ -175,9 +176,9 @@ def train(h: GlobalConf):
                     A_error = amplitude_loss(logamp_gt, logamp_pred).item()
                     IP_error, GD_error, PTD_error = phase_loss(phase_gt, phase_pred, h.n_fft, phase_gt.size()[-1])
                     IP_error, GD_error, PTD_error = IP_error.item(), GD_error.item(), PTD_error.item()
-                    C_error = STFT_consistency_loss(real_pred_direct, real_pred_wave, imag_pred_direct, imag_pred_wave).item()
-                    R_error = F.l1_loss(real_gt, real_pred_direct).item()
-                    I_error = F.l1_loss(imag_gt, imag_pred_direct).item()
+                    C_error = STFT_consistency_loss(real_pred_direct, real_pred_wave, imag_pred_direct, imag_pred_wave).item() if not h.loss_on_wave else 0
+                    R_error = F.l1_loss(real_gt, real_pred_direct).item()                                                      if not h.loss_on_wave else 0
+                    I_error = F.l1_loss(imag_gt, imag_pred_direct).item()                                                      if not h.loss_on_wave else 0
                     Mel_error = F.l1_loss(x, y_g_mel).item()
 
                 print('Steps : {:d}, Gen Loss Total : {:4.3f}, Amplitude Loss : {:4.3f}, Instantaneous Phase Loss : {:4.3f}, Group Delay Loss : {:4.3f}, Phase Time Difference Loss : {:4.3f}, STFT Consistency Loss : {:4.3f}, Real Part Loss : {:4.3f}, Imaginary Part Loss : {:4.3f}, Mel Spectrogram Loss : {:4.3f}, s/b : {:4.3f}'.
@@ -227,11 +228,15 @@ def train(h: GlobalConf):
                         wave_gt   =   wave_gt.to(device, non_blocking=True) # :: (B=1, T)           - Goundr-truth waveform, in range [-1, 1]
 
                         # Forward
-                        logamp_pred, phase_pred, real_pred_direct, imag_pred_direct, wave_pred = generator(x)
+                        logamp_pred_direct, phase_pred_direct, real_pred_direct, imag_pred_direct, wave_pred = generator(x)
 
                         # Transform
                         y_g_mel = mel_spectrogram(wave_pred.squeeze(1), h.n_fft, h.num_mels, h.sampling_rate,h.hop_size, h.win_size,h.fmin, h.fmax)
-                        _, _, real_pred_wave, imag_pred_wave = amp_pha_specturm(wave_pred.squeeze(1), h.n_fft, h.hop_size, h.win_size)
+                        logamp_pred_wave, phase_pred_wave, real_pred_wave, imag_pred_wave = amp_pha_specturm(wave_pred.squeeze(1), h.n_fft, h.hop_size, h.win_size)
+
+                        # Loss mode - loss on direct network output STFT OR on final waveform
+                        logamp_pred = logamp_pred_direct if h.loss_on_wave else logamp_pred_wave
+                        phase_pred  = phase_pred_direct  if h.loss_on_wave else phase_pred_wave
 
                         # Loss
                         val_A_err_tot   += amplitude_loss(logamp_gt, logamp_pred).item()
@@ -239,9 +244,9 @@ def train(h: GlobalConf):
                         val_IP_err_tot  += val_IP_err.item()
                         val_GD_err_tot  += val_GD_err.item()
                         val_PTD_err_tot += val_PTD_err.item()
-                        val_C_err_tot   += STFT_consistency_loss(real_pred_direct, real_pred_wave, imag_pred_direct, imag_pred_wave).item()
-                        val_R_err_tot   += F.l1_loss(real_gt, real_pred_direct).item()
-                        val_I_err_tot   += F.l1_loss(imag_gt, imag_pred_direct).item()
+                        val_C_err_tot   += STFT_consistency_loss(real_pred_direct, real_pred_wave, imag_pred_direct, imag_pred_wave).item() if not h.loss_on_wave else 0
+                        val_R_err_tot   += F.l1_loss(real_gt, real_pred_direct).item()                                                      if not h.loss_on_wave else 0
+                        val_I_err_tot   += F.l1_loss(imag_gt, imag_pred_direct).item()                                                      if not h.loss_on_wave else 0
                         val_Mel_err_tot += F.l1_loss(x, y_g_mel).item()
 
                         # Log Audio & Mel image
