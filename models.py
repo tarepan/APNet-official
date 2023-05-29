@@ -81,6 +81,9 @@ class Generator(torch.nn.Module):
         self.PSP_output_R_conv.apply(init_weights)
         self.PSP_output_I_conv.apply(init_weights)
 
+        if h.use_fc:
+            raise RuntimeError("Currently, `use_fc` is not supported in Generator.")
+
     def forward(self, mel):
         """
         Args:
@@ -159,6 +162,10 @@ class UnifiedGenerator(torch.nn.Module):
         self.postnet_r.apply(init_weights)
         self.postnet_i.apply(init_weights)
 
+        if h.use_fc:
+            self.fcistft = \
+                       = weight_norm(Conv1dEx(freq*2, h.hop_size, 1))
+
     def forward(self, mel):
         """
         Args:
@@ -185,13 +192,16 @@ class UnifiedGenerator(torch.nn.Module):
         phase_i = self.postnet_i(h)
         phase = torch.atan2(phase_i, phase_r)
 
-        # Complex spectrogram
-        spec = torch.exp(logamp) * (torch.exp(1j * phase))
         real = torch.exp(logamp) * torch.cos(phase)
         imag = torch.exp(logamp) * torch.sin(phase)
 
-        # iSTFT
-        audio = torch.istft(spec, self.h.n_fft, hop_length=self.h.hop_size, win_length=self.h.win_size, window=torch.hann_window(self.h.win_size).to(mel.device), center=True)
+        if not self.h.use_fc:
+            # iSTFT
+            spec = torch.exp(logamp) * (torch.exp(1j * phase))
+            audio = torch.istft(spec, self.h.n_fft, hop_length=self.h.hop_size, win_length=self.h.win_size, window=torch.hann_window(self.h.win_size).to(mel.device), center=True)
+        else:
+            # FC :: (B, Feat=2*freq, Frame) -> (B, Feat=hop, Frame) -> (B, T)
+            audio = self.fcistft(torch.cat([logamp, phase], dim=-2)).transpose(-2, -1).flatten(start_dim=1)
 
         return logamp, phase, real, imag, audio.unsqueeze(1)
 

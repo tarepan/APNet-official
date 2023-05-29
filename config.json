@@ -38,6 +38,7 @@
 
     "unified_mainnet": false,
     "causal":          false,
+    "use_fc":          false,
     "wo_d":            false,
     "loss_on_wave":    false,
 
