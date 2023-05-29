@@ -93,11 +93,11 @@ def train(h: GlobalConf):
             start_b = time.time()
 
             # Data
-            x, logamp, pha, rea, imag, y = batch
+            x, logamp, pha, real, imag, y = batch
             x      =      x.to(device, non_blocking=True) # :: (B, Freq, Frame) - Mel-frequency    Log-Amplitude spectrogram
             logamp = logamp.to(device, non_blocking=True) # :: (B, Freq, Frame) - Linear-frequency Log-Amplitude spectrogram
             pha    =    pha.to(device, non_blocking=True) # :: (B, Freq, Frame) - Phase spectrogram, in range [-pi, -pi]
-            rea    =    rea.to(device, non_blocking=True) # :: (B, Freq, Frame) - STFT real      value
+            real   =   real.to(device, non_blocking=True) # :: (B, Freq, Frame) - STFT real      value
             imag   =   imag.to(device, non_blocking=True) # :: (B, Freq, Frame) - STFT imaginary value
             y      =      y.to(device, non_blocking=True) # :: (B, T)           - Gound-truth waveform, in range [-1, 1]
 
@@ -105,7 +105,7 @@ def train(h: GlobalConf):
             y = y.unsqueeze(1) # :: (B, 1, T)
 
             # Common_Forward
-            logamp_g, pha_g, rea_g, imag_g, y_g = generator(x)
+            logamp_g, pha_g, real_g, imag_g, y_g = generator(x)
 
             # Discriminator
             if not h.wo_d:
@@ -132,8 +132,8 @@ def train(h: GlobalConf):
             L_P = L_IP + L_GD + L_PTD
             ## STFT spectra
             _, _, rea_g_final, imag_g_final = amp_pha_specturm(y_g.squeeze(1), h.n_fft, h.hop_size, h.win_size)
-            L_C = STFT_consistency_loss(rea_g, rea_g_final, imag_g, imag_g_final)
-            L_R = F.l1_loss(rea, rea_g)
+            L_C = STFT_consistency_loss(real_g, rea_g_final, imag_g, imag_g_final)
+            L_R = F.l1_loss(real, real_g)
             L_I = F.l1_loss(imag, imag_g)
             w_ri = 2.25
             L_S = L_C + w_ri * (L_R + L_I)
@@ -169,8 +169,8 @@ def train(h: GlobalConf):
                     A_error = amplitude_loss(logamp, logamp_g).item()
                     IP_error, GD_error, PTD_error = phase_loss(pha, pha_g, h.n_fft, pha.size()[-1])
                     IP_error, GD_error, PTD_error = IP_error.item(), GD_error.item(), PTD_error.item()
-                    C_error = STFT_consistency_loss(rea_g, rea_g_final, imag_g, imag_g_final).item()
-                    R_error = F.l1_loss(rea, rea_g).item()
+                    C_error = STFT_consistency_loss(real_g, rea_g_final, imag_g, imag_g_final).item()
+                    R_error = F.l1_loss(real, real_g).item()
                     I_error = F.l1_loss(imag, imag_g).item()
                     Mel_error = F.l1_loss(x, y_g_mel).item()
 
@@ -212,16 +212,16 @@ def train(h: GlobalConf):
                     for j, batch in enumerate(validation_loader):
 
                         # Data
-                        x, logamp, pha, rea, imag, y = batch
+                        x, logamp, pha, real, imag, y = batch
                         x      =      x.to(device, non_blocking=True) # :: (B=1, Freq, Frame) - Mel-frequency    Log-Amplitude spectrogram
                         logamp = logamp.to(device, non_blocking=True) # :: (B=1, Freq, Frame) - Linear-frequency Log-Amplitude spectrogram
                         pha    =    pha.to(device, non_blocking=True) # :: (B=1, Freq, Frame) - Phase spectrogram, in range [-pi, -pi]
-                        rea    =    rea.to(device, non_blocking=True) # :: (B=1, Freq, Frame) - STFT real      value
+                        real   =   real.to(device, non_blocking=True) # :: (B=1, Freq, Frame) - STFT real      value
                         imag   =   imag.to(device, non_blocking=True) # :: (B=1, Freq, Frame) - STFT imaginary value
                         y      =      y.to(device, non_blocking=True) # :: (B=1, T)           - Gound-truth waveform, in range [-1, 1]
 
                         # Forward
-                        logamp_g, pha_g, rea_g, imag_g, y_g = generator(x)
+                        logamp_g, pha_g, real_g, imag_g, y_g = generator(x)
 
                         # Transform
                         y_g_mel = mel_spectrogram(y_g.squeeze(1), h.n_fft, h.num_mels, h.sampling_rate,h.hop_size, h.win_size,h.fmin, h.fmax)
@@ -233,8 +233,8 @@ def train(h: GlobalConf):
                         val_IP_err_tot  += val_IP_err.item()
                         val_GD_err_tot  += val_GD_err.item()
                         val_PTD_err_tot += val_PTD_err.item()
-                        val_C_err_tot   += STFT_consistency_loss(rea_g, rea_g_final, imag_g, imag_g_final).item()
-                        val_R_err_tot   += F.l1_loss(rea, rea_g).item()
+                        val_C_err_tot   += STFT_consistency_loss(real_g, rea_g_final, imag_g, imag_g_final).item()
+                        val_R_err_tot   += F.l1_loss(real, real_g).item()
                         val_I_err_tot   += F.l1_loss(imag, imag_g).item()
                         val_Mel_err_tot += F.l1_loss(x, y_g_mel).item()
 

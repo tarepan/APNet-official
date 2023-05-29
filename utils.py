@@ -52,8 +52,8 @@ class GlobalConf:
     PSP_output_R_conv_kernel_size: int
     PSP_output_I_conv_kernel_size: int
 
-    unified_mainnet:               bool
-    causal:                        bool
+    unified_mainnet:               bool # Whether to use ASP/PSP unified generator
+    causal:                        bool # Whether to use causal conv
     wo_d:                          bool # Whether to train without Discriminator
 
     segment_size:  int # ✔
