@@ -36,8 +36,9 @@
     "PSP_output_R_conv_kernel_size": 7,
     "PSP_output_I_conv_kernel_size": 7,
 
-    "causal": false,
-    "wo_d": false,
+    "unified_mainnet": false,
+    "causal":          false,
+    "wo_d":            false,
 
     "segment_size": 8000,
     "num_mels": 80,

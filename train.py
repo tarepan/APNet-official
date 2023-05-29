@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from speechcorpusy import load_preset
 
 from dataset import Dataset, mel_spectrogram, amp_pha_specturm, get_dataset_filelist
-from models import Generator, MultiPeriodDiscriminator, MultiScaleDiscriminator, feature_loss, generator_loss,\
+from models import Generator, UnifiedGenerator, MultiPeriodDiscriminator, MultiScaleDiscriminator, feature_loss, generator_loss,\
     discriminator_loss, amplitude_loss, phase_loss, STFT_consistency_loss
 from utils import AttrDict, GlobalConf, build_env, plot_spectrogram, scan_checkpoint, load_checkpoint, save_checkpoint
 
@@ -25,7 +25,7 @@ def train(h: GlobalConf):
     device = torch.device('cuda:0')
 
     # Model
-    generator =               Generator(h).to(device)
+    generator =               Generator(h).to(device) if not h.unified_mainnet else UnifiedGenerator(h).to(device)
     mpd       = MultiPeriodDiscriminator().to(device)
     msd       =  MultiScaleDiscriminator().to(device)
     print(generator)

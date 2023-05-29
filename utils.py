@@ -51,9 +51,10 @@ class GlobalConf:
     PSP_input_conv_kernel_size:    int
     PSP_output_R_conv_kernel_size: int
     PSP_output_I_conv_kernel_size: int
-    causal:                        bool
 
-    wo_d:          bool # Whether to train without Discriminator
+    unified_mainnet:               bool
+    causal:                        bool
+    wo_d:                          bool # Whether to train without Discriminator
 
     segment_size:  int # ✔
     n_fft:         int # ✔

@@ -129,6 +129,73 @@ class Generator(torch.nn.Module):
         return logamp, pha, real, imag, audio.unsqueeze(1)
 
 
+class UnifiedGenerator(torch.nn.Module):
+    def __init__(self, h):
+        super().__init__()
+
+        # Validation
+        assert h.ASP_input_conv_kernel_size    % 2 == 1, f"Support only odd-number kernel, but set to {h.ASP_input_conv_kernel_size}."
+        assert h.ASP_output_conv_kernel_size   % 2 == 1, f"Support only odd-number kernel, but set to {h.ASP_output_conv_kernel_size}."
+        assert h.PSP_output_R_conv_kernel_size % 2 == 1, f"Support only odd-number kernel, but set to {h.PSP_output_R_conv_kernel_size}."
+        assert h.PSP_output_I_conv_kernel_size % 2 == 1, f"Support only odd-number kernel, but set to {h.PSP_output_I_conv_kernel_size}."
+
+        # Params
+        self.h = h
+        self.num_kernels = len(h.ASP_resblock_kernel_sizes) # `P` of ASP
+        freq = h.n_fft // 2 + 1
+        feat_h = h.ASP_channel
+
+        # MainNet - `P`-kernel multi receptive field network
+        self.mainnet = nn.ModuleList()
+        for k, d in zip(h.ASP_resblock_kernel_sizes, h.ASP_resblock_dilation_sizes):
+            self.mainnet.append(ResBlock(feat_h, k, d, h.causal))
+
+        # PreNet/PostNets
+        self.prenet    = weight_norm(Conv1dEx(h.num_mels, feat_h, h.ASP_input_conv_kernel_size,    padding="same", causal=h.causal))
+        self.postnet_a = weight_norm(Conv1dEx(feat_h,     freq,   h.ASP_output_conv_kernel_size,   padding="same", causal=h.causal))
+        self.postnet_r = weight_norm(Conv1dEx(feat_h,     freq,   h.PSP_output_R_conv_kernel_size, padding="same", causal=h.causal))
+        self.postnet_i = weight_norm(Conv1dEx(feat_h,     freq,   h.PSP_output_I_conv_kernel_size, padding="same", causal=h.causal))
+        self.postnet_a.apply(init_weights)
+        self.postnet_r.apply(init_weights)
+        self.postnet_i.apply(init_weights)
+
+    def forward(self, mel):
+        """
+        Args:
+            mel - Mel-Frequency 
+        Returns:
+            logamp - Linear-Frequency Log-Amplitude spectrogram
+            phase
+            real
+            imag
+            audio
+        """
+        # ASP
+        ## PreNet
+        h = self.prenet(mel)
+        ## MainNet - MRF
+        hs      = self.mainnet[0](h)
+        for j in range(1, self.num_kernels):
+            hs += self.mainnet[j](h)
+        h = hs / self.num_kernels
+        h = F.leaky_relu(h)
+        ## PostNet - LogAmp/PhaseRe/PhaseIm
+        logamp  = self.postnet_a(h)
+        phase_r = self.postnet_r(h)
+        phase_i = self.postnet_i(h)
+        phase = torch.atan2(phase_i, phase_r)
+
+        # Complex spectrogram
+        spec = torch.exp(logamp) * (torch.exp(1j * phase))
+        real = torch.exp(logamp) * torch.cos(phase)
+        imag = torch.exp(logamp) * torch.sin(phase)
+
+        # iSTFT
+        audio = torch.istft(spec, self.h.n_fft, hop_length=self.h.hop_size, win_length=self.h.win_size, window=torch.hann_window(self.h.win_size).to(mel.device), center=True)
+
+        return logamp, phase, real, imag, audio.unsqueeze(1)
+
+
 class DiscriminatorP(torch.nn.Module):
     def __init__(self, period, kernel_size=5, stride=3, use_spectral_norm=False):
         super(DiscriminatorP, self).__init__()
