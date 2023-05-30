@@ -164,7 +164,7 @@ class UnifiedGenerator(torch.nn.Module):
 
         if h.use_fc:
             self.fcistft = \
-                       = weight_norm(Conv1dEx(freq*2, h.hop_size, 1))
+                         weight_norm(Conv1dEx(freq*2, h.hop_size, 1))
 
     def forward(self, mel):
         """
@@ -196,12 +196,14 @@ class UnifiedGenerator(torch.nn.Module):
         imag = torch.exp(logamp) * torch.sin(phase)
 
         if not self.h.use_fc:
-            # iSTFT
+            # iSTFT :: (B, Feat=2*freq, Frame=frm) -> (B, T=)
             spec = torch.exp(logamp) * (torch.exp(1j * phase))
             audio = torch.istft(spec, self.h.n_fft, hop_length=self.h.hop_size, win_length=self.h.win_size, window=torch.hann_window(self.h.win_size).to(mel.device), center=True)
         else:
-            # FC :: (B, Feat=2*freq, Frame) -> (B, Feat=hop, Frame) -> (B, T)
+            # TODO: padding
+            # FC :: (B, Feat=2*freq, Frame=frm) -> (B, Feat=hop, Frame=frm) -> (B, T=hop*frm)
             audio = self.fcistft(torch.cat([logamp, phase], dim=-2)).transpose(-2, -1).flatten(start_dim=1)
+            audio = audio[:, 80:]
 
         return logamp, phase, real, imag, audio.unsqueeze(1)
 
